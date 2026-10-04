@@ -12,8 +12,10 @@ dependencies = [
     "fastapi>=0.104",
     "uvicorn[standard]>=0.24",
     "pydantic-settings>=2.0",
-    "metricflow>=0.207.3,<0.209.0",
-    "dbt-metricflow>=0.8.2,<0.9.0",
+    # 本地源码版：唯一带 ClickHouse SQL 渲染器的版本
+    # （CK 支持 2026-09-29 才随 PR #2124 合入，PyPI 上 0.213.0 及以下都没有 clickhouse 渲染器）
+    "metricflow>=0.214.0.dev0,<0.215",
+    "dbt-metricflow>=0.16.0.dev0,<0.17",
 ]
 
 [project.optional-dependencies]
@@ -24,6 +26,11 @@ databricks = ["dbt-databricks>=1.7"]
 postgres = ["dbt-postgres>=1.7"]
 redshift = ["dbt-redshift>=1.7"]
 snowflake = ["dbt-snowflake>=1.7"]
+
+# 指向已 clone 的 fork 源码（C:\mf），editable 便于同时二开两边
+[tool.uv.sources]
+metricflow = { path = "C:/mf", editable = true }
+dbt-metricflow = { path = "C:/mf/dbt-metricflow", editable = true }
 
 [project.scripts]
 metricflow-server = "metricflow_server.main:cli"

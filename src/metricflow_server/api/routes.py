@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from dbt_semantic_interfaces.type_enums import DimensionType
+from metricflow_semantic_interfaces.type_enums import DimensionType
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from metricflow.engine.metricflow_engine import MetricFlowQueryRequest
 from metricflow_semantics.errors.error_classes import (
@@ -43,12 +43,25 @@ def _require_engine():
 def _serialize_dimension(d) -> DimensionResponse:
     """Convert a MetricFlow Dimension to the SDK-compatible response."""
     granularities = []
-    if d.type == DimensionType.TIME and d.type_params and d.type_params.time_granularity:
+    if (
+        d.type == DimensionType.TIME
+        and d.type_params
+        and d.type_params.time_granularity
+    ):
         granularities = [str(d.type_params.time_granularity)]
 
     return DimensionResponse(
         name=d.name,
-        qualified_name=d.qualified_name,
+        # 0.207 → 0.214 的 API 变更：Dimension.qualified_name 已不存在。
+        # 这里必须用 granularity_free_dunder_name 而非 dunder_name ——
+        # dunder_name 对时间维度会带粒度后缀（如 metric_time__day），
+        # 会让下方 list_metrics() 里 `== "metric_time"` 的判断失效。
+        # 0.214 源码 metricflow/engine/models.py 对该属性的注释原文：
+        #   "In the list metrics and list dimensions outputs we want to render
+        #    the qualified name of the dimension, but without including the
+        #    base granularity for time dimensions. This method is useful in
+        #    those contexts."
+        qualified_name=d.granularity_free_dunder_name,
         description=d.description,
         type=str(d.type),
         label=d.label,
@@ -70,11 +83,16 @@ def health(response: Response):
 # ------------------------------------------------------------------
 # Query
 # ------------------------------------------------------------------
-@router.post("/query", response_model=QueryResponse, dependencies=[Depends(verify_api_key)])
+@router.post(
+    "/query", response_model=QueryResponse, dependencies=[Depends(verify_api_key)]
+)
 def query(body: QueryRequest):
     engine = _require_engine()
 
-    mf_request = MetricFlowQueryRequest.create_with_random_request_id(
+    # 0.207 → 0.214 的 API 变更：类方法 create_with_random_request_id 已移除，
+    # 统一为 create()（request_id 为 None 时内部自动生成 mf_random_id）。
+    # 参数名与旧版完全一致，故只换方法名。
+    mf_request = MetricFlowQueryRequest.create(
         metric_names=body.metrics,
         group_by_names=body.group_by,
         where_constraints=body.where,
@@ -91,12 +109,16 @@ def query(body: QueryRequest):
         cause_type = type(cause).__name__
         cause_msg = str(cause)
         if isinstance(e, ExecutionException):
-            logger.error("Warehouse execution error [%s]: %s", cause_type, cause_msg, exc_info=e)
+            logger.error(
+                "Warehouse execution error [%s]: %s", cause_type, cause_msg, exc_info=e
+            )
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Warehouse error ({cause_type}): {cause_msg}",
             )
-        logger.error("Unexpected query error [%s]: %s", cause_type, cause_msg, exc_info=e)
+        logger.error(
+            "Unexpected query error [%s]: %s", cause_type, cause_msg, exc_info=e
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal error ({cause_type}): {cause_msg}",
@@ -126,7 +148,9 @@ def query(body: QueryRequest):
         return "string"
 
     schema = SchemaInfo(
-        fields=[SchemaField(name=col, type=_infer_type(col_data[col])) for col in columns]
+        fields=[
+            SchemaField(name=col, type=_infer_type(col_data[col])) for col in columns
+        ]
     )
 
     return QueryResponse(
@@ -139,7 +163,11 @@ def query(body: QueryRequest):
 # ------------------------------------------------------------------
 # Metrics
 # ------------------------------------------------------------------
-@router.get("/metrics", response_model=list[MetricResponse], dependencies=[Depends(verify_api_key)])
+@router.get(
+    "/metrics",
+    response_model=list[MetricResponse],
+    dependencies=[Depends(verify_api_key)],
+)
 def list_metrics():
     engine = _require_engine()
 
@@ -148,18 +176,20 @@ def list_metrics():
         dims = [_serialize_dimension(d) for d in m.dimensions]
         has_metric_time = any(d.qualified_name == "metric_time" for d in dims)
 
-        results.append(MetricResponse(
-            name=m.name,
-            description=m.description,
-            type=str(m.type),
-            label=m.label,
-            requires_metric_time=has_metric_time,
-            queryable_time_granularities=[
-                g
-                for d in dims
-                for g in d.queryable_time_granularities
-                if d.qualified_name == "metric_time"
-            ],
-            dimensions=dims,
-        ))
+        results.append(
+            MetricResponse(
+                name=m.name,
+                description=m.description,
+                type=str(m.type),
+                label=m.label,
+                requires_metric_time=has_metric_time,
+                queryable_time_granularities=[
+                    g
+                    for d in dims
+                    for g in d.queryable_time_granularities
+                    if d.qualified_name == "metric_time"
+                ],
+                dimensions=dims,
+            )
+        )
     return results
