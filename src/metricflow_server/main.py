@@ -10,6 +10,7 @@ from metricflow_server.api.admin import router as admin_router
 from metricflow_server.api.routes import router as api_router
 from metricflow_server.config import settings
 from metricflow_server.engine_manager import engine_manager
+from metricflow_server.workspaces import api_router as workspace_api_router,admin_router as workspace_admin_router
 
 logging.basicConfig(level=settings.log_level.upper())
 logger = logging.getLogger(__name__)
@@ -44,6 +45,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="MetricFlow Server", version="0.1.0", lifespan=lifespan)
 app.include_router(api_router)
 app.include_router(admin_router)
+app.include_router(workspace_api_router)
+app.include_router(workspace_admin_router)
 
 if _mcp_available:
     app.mount("/mcp", mcp_app)

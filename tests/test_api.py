@@ -36,6 +36,9 @@ def mock_engine():
     dim = MagicMock()
     dim.name = "location_name"
     dim.qualified_name = "location__location_name"
+    # 0.214 exposes these instead of the removed qualified_name attribute.
+    dim.granularity_free_dunder_name = "location__location_name"
+    dim.dunder_name = "location__location_name"
     dim.description = None
     dim.label = None
     from metricflow_semantic_interfaces.type_enums import DimensionType

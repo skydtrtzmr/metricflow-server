@@ -70,6 +70,16 @@ class EngineManager:
     # Manifest hot-reload
     # ------------------------------------------------------------------
     def load_manifest(self, manifest_json: str) -> None:
+        engine = self.create_engine(manifest_json)
+        with self._lock:
+            self._engine = engine
+        logger.info("MetricFlowEngine reloaded successfully")
+
+    def create_engine(self, manifest_json: str):
+        """Build an independent engine using the already-initialized adapter.
+
+        Workspace revisions must not replace the default /api/v1 engine.
+        """
         if self._sql_client is None:
             raise RuntimeError("Adapter not initialised – call init_adapter first")
 
@@ -78,17 +88,18 @@ class EngineManager:
             manifest_json_string=manifest_json
         )
         lookup = SemanticManifestLookup(semantic_manifest)
-        engine = MetricFlowEngine(
+        return MetricFlowEngine(
             semantic_manifest_lookup=lookup,
             sql_client=self._sql_client,
         )
-        with self._lock:
-            self._engine = engine
-        logger.info("MetricFlowEngine reloaded successfully")
 
     # ------------------------------------------------------------------
     # Access
     # ------------------------------------------------------------------
+    @property
+    def adapter_ready(self) -> bool:
+        return self._sql_client is not None
+
     @property
     def engine(self):
         with self._lock:

@@ -371,6 +371,32 @@ location /mcp {
 
 ---
 
+## Versioned workspace API (2026-10-29)
+
+The server can host independent workbench manifest revisions while preserving
+the existing default `/api/v1` engine. It initializes the dbt adapter once at
+startup; requests do not launch `mf` or `dbt debug`.
+
+| Endpoint | Authorization | Purpose |
+|---|---|---|
+| `GET /api/v1/workspaces/health` | None | Workspace capability/readiness |
+| `PUT /admin/workspaces/{workspace}/revisions/{revision}` | Admin bearer | Register manifest + subject labels |
+| `GET /api/v1/workspaces/{workspace}/revisions/{revision}` | API bearer | Check loaded revision |
+| `POST /api/v1/workspaces/{workspace}/revisions/{revision}/execute` | API bearer | Discover dimensions/entities, compile or query |
+
+Revision IDs are 64 lowercase hexadecimal characters; workspace names are
+lowercase slugs. Upload body: `{"manifest": {...}, "subjects": [{"id": "orders", "name": "Orders"}]}`.
+Reusing an ID with different content returns 409. At most 16 revisions remain
+loaded (LRU); evicted revisions can be uploaded again. Metadata is cached per
+metric set; query rows are never cached. `force: true` recomputes metadata.
+
+Execute body: `{"action": "dimensions", "metrics": ["sales_amount"]}`;
+actions are `dimensions`, `compile`, `query`, with optional `group_by`, `where`,
+`start`, `end`, `limit` (1–1000). Results preserve native MetricFlow Entity links
+and resolved time grains; matching business subjects are explicit candidates,
+not inferred from database foreign keys. Adapter/profile changes require a
+server restart. Secrets stay on callers' backends.
+
 ## Supported adapters
 
 | Adapter | Extra |
