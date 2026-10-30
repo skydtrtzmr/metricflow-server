@@ -96,6 +96,13 @@ class SemanticRequest(BaseModel):
     end:datetime.date|None=None
     limit:int=Field(default=100,ge=1,le=1000)
     force:bool=False
+    order_by:list[str]=Field(default_factory=list,max_length=20)
+
+    @field_validator('order_by')
+    @classmethod
+    def valid_order(cls,values):
+        if any(not re.fullmatch(r'-?[a-zA-Z_][a-zA-Z0-9_]*',v) for v in values):raise ValueError('Invalid sort field')
+        return values
 
     @field_validator('metrics','group_by')
     @classmethod

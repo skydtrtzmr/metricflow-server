@@ -78,6 +78,7 @@ def execute_query(engine,payload):
     import datetime as dt
     request = MetricFlowQueryRequest.create(
         metric_names=names, group_by_names=payload.get('group_by', []),
+        order_by_names=payload.get('order_by') or None,
         where_constraints=[payload['where']] if payload.get('where') else None,
         time_constraint_start=dt.datetime.fromisoformat(payload['start']) if payload.get('start') else None,
         time_constraint_end=dt.datetime.fromisoformat(payload['end']) if payload.get('end') else None,
